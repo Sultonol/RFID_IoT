@@ -22,7 +22,7 @@ if ($data) {
     $waktu = $conn->real_escape_string($data['time']);
 
     // 🔥 CARI NAMA DI TABLE USERS
-    $query = "SELECT nama FROM users WHERE uid='$uid'";
+    $query = "SELECT nama FROM mahasiswa WHERE uid='$uid'";
     $result = $conn->query($query);
 
     if ($row = $result->fetch_assoc()) {

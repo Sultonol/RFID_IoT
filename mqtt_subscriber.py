@@ -10,10 +10,10 @@ db = mysql.connector.connect(
     database="iot_rfid"
 )
 
-cursor = db.cursor()
+cursor = db.cursor(buffered=True)
 
 # ================= MQTT =================
-broker = "10.237.23.129"
+broker = "192.168.1.10"
 topic = "sensor/rfid"
 
 def on_connect(client, userdata, flags, rc):
@@ -29,7 +29,7 @@ def on_message(client, userdata, msg):
     waktu = data["time"]
 
     # 🔥 CARI NAMA DARI TABEL USERS
-    cursor.execute("SELECT nama FROM users WHERE uid=%s", (uid,))
+    cursor.execute("SELECT nama FROM mahasiswa WHERE uid=%s", (uid,))
     result = cursor.fetchone()
 
     if result:
@@ -38,8 +38,7 @@ def on_message(client, userdata, msg):
         nama = "Tidak Dikenal"
 
     # 🔥 SIMPAN KE mqtt_logs
-    sql = "INSERT INTO mqtt_logs (uid, nama, waktu) VALUES (%s, %s, %s)"
-    cursor.execute(sql, (uid, nama, waktu))
+    cursor.execute("INSERT INTO mqtt_logs (uid, nama, waktu) VALUES (%s, %s, %s)", (uid, nama, waktu))
     db.commit()
 
     print(f"UID: {uid} → Nama: {nama}")
