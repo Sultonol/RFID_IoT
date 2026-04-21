@@ -13,8 +13,8 @@ db = mysql.connector.connect(
 cursor = db.cursor(buffered=True)
 
 # ================= MQTT =================
-broker = "192.168.1.10"
-topic = "sensor/rfid"
+broker = "10.147.0.50"
+topic = "sensor/rfid"   
 
 def on_connect(client, userdata, flags, rc):
     print("Connected to MQTT")

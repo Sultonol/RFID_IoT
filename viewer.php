@@ -2,24 +2,34 @@
 $conn = new mysqli("localhost", "root", "", "iot_rfid");
 $today = date("Y-m-d");
 
-// Total scan hari ini
-$r = $conn->query("SELECT COUNT(*) as total, MAX(waktu) as last FROM rfid_logs WHERE DATE(waktu) = '$today'");
+// HARUS paling atas sebelum semua query
+$filter_date = isset($_GET['tanggal']) ? $_GET['tanggal'] : $today;
+
+// Total scan — pakai $filter_date
+$r = $conn->query("SELECT COUNT(*) as total, MAX(waktu) as last FROM rfid_logs WHERE DATE(waktu) = '$filter_date'");
 $row = $r->fetch_assoc();
 $total_scan = $row['total'];
 $waktu_terakhir = $row['last'] ? date("H:i", strtotime($row['last'])) . " WIB" : "-";
 
-// Total mahasiswa terdaftar
+// Total mahasiswa terdaftar (tidak perlu filter)
 $r2 = $conn->query("SELECT COUNT(*) as total FROM mahasiswa");
 $total_mahasiswa = $r2->fetch_assoc()['total'];
 
-// Hadir hari ini (uid yang scan hari ini dan terdaftar)
+// Hadir — pakai $filter_date
 $r3 = $conn->query("SELECT COUNT(DISTINCT rl.uid) as hadir FROM rfid_logs rl
                     INNER JOIN mahasiswa m ON m.uid = rl.uid
-                    WHERE DATE(rl.waktu) = '$today'");
+                    WHERE DATE(rl.waktu) = '$filter_date'");
 $total_hadir = $r3->fetch_assoc()['hadir'];
 $total_absen = $total_mahasiswa - $total_hadir;
+
 $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid NOT IN (SELECT uid FROM mahasiswa)")->fetch_assoc()['c'];
+
+// Query tabel — pakai $filter_date
+$result = $conn->query("SELECT * FROM rfid_logs WHERE DATE(waktu) = '$filter_date' ORDER BY id DESC");
+
+$label_tanggal = ($filter_date === $today) ? "hari ini" : date("d M Y", strtotime($filter_date));
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
 
@@ -39,6 +49,65 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
             background: #f0f4f8;
             color: #1a1a2e;
             min-height: 100vh;
+        }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fafafa;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #374151;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+
+        .btn:hover {
+            background: #f1f5f9;
+        }
+
+        /* FILTER */
+        .filter-select {
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid #d1d5db;
+            border-radius: 7px;
+            background: #fff;
+            color: #374151;
+            cursor: pointer;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .filter-select:focus {
+            border-color: #378ADD;
+            box-shadow: 0 0 0 3px rgba(55, 138, 221, 0.12);
         }
 
         /* ===== NAVBAR ===== */
@@ -169,7 +238,9 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
             margin-top: 1.25rem;
             margin-bottom: 1.25rem;
             margin-left: 1.3rem;
+            margin-right: 1.3rem;
             padding: 4px;
+            max-width: 818px;
         }
 
         .page-header h1 {
@@ -254,7 +325,6 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
         table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: auto;
         }
 
         th {
@@ -282,14 +352,17 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
             background: #f8fafc;
         }
 
-        /* .table-container {
-            background: white;
+        .table-container {
+            background: #f0f4f8;
             border-radius: 8px;
             border: 1px solid #e5e7eb;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             overflow: hidden;
-            margin-top: 20px;
-        } */
+            width: 100%;
+            margin: 25px;
+            box-sizing: border-box;
+            max-width: 1471px;
+        }
 
         .uid {
             font-family: monospace;
@@ -373,10 +446,10 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
         </div>
 
         <div class="nav-links">
-            <a class="nav-link active" href="index.php">Dashboard</a>
-            <a class="nav-link" href="data_mahasiswa.php">Data Mahasiswa</a>
-            <a class="nav-link" href="absensi.php">Absensi</a>
+            <a class="nav-link active" href="viewer.php">Logs</a>
             <a class="nav-link" href="register.php">Register Kartu</a>
+            <a class="nav-link" href="data_mahasiswa.php">Data Mahasiswa</a>
+            <a class="nav-link" href="scan_absensi.php">Absensi</a>
         </div>
 
         <div class="nav-right">
@@ -430,6 +503,32 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
         </div>
     </div>
     <div class="table-container">
+        <div class="card-head">
+            <span class="card-title">Log RFID Terbaru</span>
+            <div class="card-actions">
+                <form method="GET" action="" style="display:flex; align-items:center; gap:8px; margin:0;">
+                    <select name="tanggal" onchange="this.form.submit()" class="filter-select">
+                        <?php
+                        for ($i = 0; $i < 30; $i++) {
+                            $date = date("Y-m-d", strtotime("-$i days"));
+                            $label = $i === 0 ? "Hari Ini" : date("d M Y", strtotime("-$i days"));
+                            $selected = $filter_date === $date ? "selected" : "";
+                            echo "<option value='$date' $selected>$label</option>";
+                        }
+                        ?>
+                    </select>
+                </form>
+                <button class="btn" onclick="location.reload()">
+                    <svg viewBox="0 0 13 13" fill="none" width="13" height="13">
+                        <path d="M11 6.5a4.5 4.5 0 01-4.5 4.5A4.5 4.5 0 012 6.5 4.5 4.5 0 016.5 2" stroke="currentColor"
+                            stroke-width="1.2" stroke-linecap="round" />
+                        <path d="M9 2h2v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
         <table>
             <tr>
                 <th>No</th>
@@ -439,21 +538,25 @@ $belum_terdaftar = $conn->query("SELECT COUNT(*) as c FROM rfid_logs WHERE uid N
             </tr>
 
             <?php
-            $conn = new mysqli("localhost", "root", "", "iot_rfid");
-
-            if ($conn->connect_error) {
-                echo "<tr><td colspan='3'>Koneksi database gagal</td></tr>";
+            if ($result->num_rows === 0) {
+                echo "<tr>
+            <td colspan='4' style='
+                text-align: center;
+                padding: 2.5rem 1rem;
+                color: #9ca3af;
+                font-size: 13px;
+            '>
+                <div style='margin-bottom: 6px; font-size: 22px;'>📭</div>
+                Tidak ada data pada tanggal <strong>" . date('d M Y', strtotime($filter_date)) . "</strong>
+            </td>
+          </tr>";
             } else {
-
-                $result = $conn->query("SELECT * FROM rfid_logs ORDER BY id DESC");
-
                 $no = 1;
-
                 while ($row = $result->fetch_assoc()) {
                     echo "<tr>";
                     echo "<td>$no</td>";
-                    echo "<td class='uid'>{$row['uid']}</td>";
-                    echo "<td>{$row['nama']}</td>";
+                    echo "<td><span class='uid'>{$row['uid']}</span></td>";
+                    echo "<td>" . ($row['nama'] ?? '<span style="color:#9ca3af;font-style:italic;">Tidak terdaftar</span>') . "</td>";
                     echo "<td>{$row['waktu']}</td>";
                     echo "</tr>";
                     $no++;
